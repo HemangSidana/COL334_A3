@@ -68,7 +68,7 @@ while offset < num_bytes:
 
 # print(filesize)
 # Calculate MD5 hash in hexadecimal format
-print(content)
+# print(content)
 md5_hash = hashlib.md5(received_data)
 md5_hex = md5_hash.hexdigest()
 
