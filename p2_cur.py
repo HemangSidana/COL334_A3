@@ -15,7 +15,7 @@ num_bytes = int(response.decode().split()[1])
 
 miss=0
 chunk_size = 1448
-gap=0.005
+gap=0.002
 num_packets=num_bytes//chunk_size
 packets=[b""]*num_packets
 visited=[False]*num_packets
@@ -29,7 +29,7 @@ while len(remaining)>0:
     i=0
     while i<len(remaining):
         send= True
-        while i<len(remaining):
+        while True:
             client_socket.settimeout(gap)
             try:
                 if i%100==0:
@@ -44,7 +44,7 @@ while len(remaining)>0:
                 if not visited[ind_recv]:
                     data=b""
                     if response_lines[2]=="Squished":
-                        gap*=2
+                        # gap*=2
                         count1+=1
                         data = response_lines[4].encode()
                         for x in range(5,len(response_lines)):
@@ -64,6 +64,8 @@ while len(remaining)>0:
                     break
                 if i%71==0:
                     print(i)
+                if i>=len(remaining):
+                    continue
                 request = f"Offset: {remaining[i]*chunk_size}\nNumBytes: {chunk_size}\n\n"
                 client_socket.sendto(request.encode(), (server_ip, server_port))
                 i+=1
