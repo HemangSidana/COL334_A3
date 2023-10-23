@@ -14,11 +14,8 @@ response, server_address = client_socket.recvfrom(1024)
 num_bytes = int(response.decode().split()[1])
 
 miss=0
-offset = 0
 chunk_size = 1448
-burst=10
-gap=0.02
-gap2=0.02
+gap=0.005
 num_packets=num_bytes//chunk_size
 packets=[b""]*num_packets
 visited=[False]*num_packets
@@ -29,19 +26,18 @@ for i in range(num_packets):
     remaining.append(i)
 
 while len(remaining)>0:
-    if len(remaining)<burst:
-        burst=len(remaining)
-    rem=[]
-    iterations=len(remaining)//burst
-    for i in range(iterations):
-        for k in range(burst):
-            request = f"Offset: {remaining[i*burst+k]*chunk_size}\nNumBytes: {chunk_size}\n\n"
-            client_socket.sendto(request.encode(), (server_ip, server_port))
-        flag=False
-        time.sleep(gap)
+    i=0
+    flag=False
+    prev_sent=0
+    while i<len(remaining):
+        cur_sent=0
+        send= True
+        req_send=0
         while True:
-            client_socket.settimeout(0.01)
+            client_socket.settimeout(gap)
             try:
+                if i%100==0:
+                    print(i)
                 response, server_address = client_socket.recvfrom(2000)
                 response_lines = response.decode().split('\n')
                 received_offset = int(response_lines[0].split()[1])
@@ -52,6 +48,9 @@ while len(remaining)>0:
                 if not visited[ind_recv]:
                     data=b""
                     if response_lines[2]=="Squished":
+                        # if(count1>100):
+                        #     print('Danger')
+                        #     print(gap)
                         count1+=1
                         data = response_lines[4].encode()
                         for x in range(5,len(response_lines)):
@@ -63,34 +62,46 @@ while len(remaining)>0:
                         for x in range(4,len(response_lines)):
                             data+="\n".encode()
                             data+=response_lines[x].encode()
+                        if i<len(remaining):
+                            request = f"Offset: {remaining[i]*chunk_size}\nNumBytes: {chunk_size}\n\n"
+                            client_socket.sendto(request.encode(), (server_ip, server_port))
+                            i+=1
+                            cur_sent+=1
                     packets[ind_recv]=data
                     visited[ind_recv]=True
+                send=False
             except socket.timeout:
-                count2+=1
-                #flag=True
-                break
-            if flag:
-                #print("hi")
-                flag=False
-                gap=0.05
-            else:
-                #print("hello")
-                gap=0.02
-
-    count2-=iterations
-
+                if not send:
+                    break
+                if i%71==0:
+                    print(i)
+                if i>=len(remaining):
+                    continue
+                request = f"Offset: {remaining[i]*chunk_size}\nNumBytes: {chunk_size}\n\n"
+                client_socket.sendto(request.encode(), (server_ip, server_port))
+                req_send+=1
+                i+=1
+                if req_send==10-prev_sent:
+                    send=False
+    rem=[]
+    prev_sent=cur_sent
+    if flag:
+        gap*=1.5
+    else:
+        gap*=0.9
     for j in range(len(remaining)):
         if not visited[remaining[j]]:
             rem.append(remaining[j])
     remaining=rem
 
+print(gap)
 received_data = b""
 for i in range(num_packets):
     received_data+=packets[i]
 
 time.sleep(0.1)
 
-while True and num_bytes%chunk_size!=0 :
+while num_bytes%chunk_size!=0 :
     request = f"Offset: {num_packets*chunk_size}\nNumBytes: {num_bytes%chunk_size}\n\n"
     client_socket.sendto(request.encode(), (server_ip, server_port))
     client_socket.settimeout(0.1)
@@ -118,14 +129,12 @@ while True and num_bytes%chunk_size!=0 :
         pass
         
 # print(received_data.decode())
-time.sleep(0.1)
 print(miss)
 md5_hash = hashlib.md5(received_data)
 md5_hex = md5_hash.hexdigest()
 
 submit_command = f"Submit: aseth@col334-672\nMD5: {md5_hex}\n\n"
 client_socket.sendto(submit_command.encode(), (server_ip, server_port))
-time.sleep(0.1)
 while True:
     client_socket.settimeout(0.1)
     try:
