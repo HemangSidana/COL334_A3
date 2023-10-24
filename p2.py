@@ -7,7 +7,7 @@ server_ip = 'vayu.iitd.ac.in'
 server_port = 9801
 
 client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-send_size_command = "SendSize\n\nReset\n\n"
+send_size_command = "SendSize\nReset\n\n"
 client_socket.sendto(send_size_command.encode(), (server_ip, server_port))
 
 response, server_address = client_socket.recvfrom(1024)
@@ -15,7 +15,7 @@ num_bytes = int(response.decode().split()[1])
 
 miss=0
 chunk_size = 1448
-gap=0.005
+gap=0.01
 num_packets=num_bytes//chunk_size
 packets=[b""]*num_packets
 visited=[False]*num_packets
@@ -24,20 +24,28 @@ count1=0
 count2=0
 for i in range(num_packets):
     remaining.append(i)
-
+burst=10
 while len(remaining)>0:
     i=0
-    flag=False
-    prev_sent=0
     while i<len(remaining):
-        cur_sent=0
-        send= True
-        req_send=0
+        if i%51==0:
+            print(i)
+        # print(i)
+        for j in range(burst):
+            if i>= len(remaining):
+                break
+            request = f"Offset: {remaining[i]*chunk_size}\nNumBytes: {chunk_size}\n\n"
+            client_socket.sendto(request.encode(), (server_ip, server_port))
+            i+=1
+            time.sleep(0.006)
+        rtt=time.time()
+        # time.sleep(gap)
+        # cur=time.time()
+        got=0
+        first=False
         while True:
             client_socket.settimeout(gap)
             try:
-                if i%100==0:
-                    print(i)
                 response, server_address = client_socket.recvfrom(2000)
                 response_lines = response.decode().split('\n')
                 received_offset = int(response_lines[0].split()[1])
@@ -48,47 +56,41 @@ while len(remaining)>0:
                 if not visited[ind_recv]:
                     data=b""
                     if response_lines[2]=="Squished":
-                        # if(count1>100):
-                        #     print('Danger')
-                        #     print(gap)
                         count1+=1
                         data = response_lines[4].encode()
                         for x in range(5,len(response_lines)):
                             data+="\n".encode()
                             data+=response_lines[x].encode()
-                        flag=True
+
                     else:
                         data = response_lines[3].encode()
                         for x in range(4,len(response_lines)):
                             data+="\n".encode()
                             data+=response_lines[x].encode()
-                        if i<len(remaining):
-                            request = f"Offset: {remaining[i]*chunk_size}\nNumBytes: {chunk_size}\n\n"
-                            client_socket.sendto(request.encode(), (server_ip, server_port))
-                            i+=1
-                            cur_sent+=1
+
                     packets[ind_recv]=data
                     visited[ind_recv]=True
-                send=False
+                got+=1
+                if not first:
+                    rtt-=time.time()
+                    # print(rtt)
+                first=True
             except socket.timeout:
-                if not send:
-                    break
-                if i%71==0:
-                    print(i)
-                if i>=len(remaining):
-                    continue
-                request = f"Offset: {remaining[i]*chunk_size}\nNumBytes: {chunk_size}\n\n"
-                client_socket.sendto(request.encode(), (server_ip, server_port))
-                req_send+=1
-                i+=1
-                if req_send==10-prev_sent:
-                    send=False
+                # if not first:
+                #     continue
+                break
+        print(got,"got")
+        if got<8:
+            gap*=1.5
+        if got>9:
+            gap*=0.9
+        print(gap)
+        # if got*10<8*burst:
+        #     burst=burst//2
+        # else:
+        #     burst+=1
+        # print(burst)
     rem=[]
-    prev_sent=cur_sent
-    if flag:
-        gap*=1.5
-    else:
-        gap*=0.9
     for j in range(len(remaining)):
         if not visited[remaining[j]]:
             rem.append(remaining[j])
