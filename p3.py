@@ -4,7 +4,7 @@ import time
 
 begin=time.time()
 server_ip = 'vayu.iitd.ac.in'
-server_port = 9801
+server_port = 9802
 
 client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 send_size_command = "SendSize\nReset\n\n"
@@ -22,6 +22,8 @@ visited=[False]*num_packets
 remaining=[]
 count1=0
 count2=0
+burst=5
+
 for i in range(num_packets):
     remaining.append(i)
 
@@ -47,24 +49,22 @@ while len(remaining)>0:
                 if not visited[ind_recv]:
                     data=b""
                     if response_lines[2]=="Squished":
-                        # if(count1>100):
-                        #     print('Danger')
-                        #     print(gap)
                         count1+=1
                         data = response_lines[4].encode()
                         for x in range(5,len(response_lines)):
                             data+="\n".encode()
                             data+=response_lines[x].encode()
                         flag=True
+                        # time.sleep(0.01)
                     else:
                         data = response_lines[3].encode()
                         for x in range(4,len(response_lines)):
                             data+="\n".encode()
                             data+=response_lines[x].encode()
-                        if i<len(remaining):
-                            request = f"Offset: {remaining[i]*chunk_size}\nNumBytes: {chunk_size}\n\n"
-                            client_socket.sendto(request.encode(), (server_ip, server_port))
-                            i+=1
+                        # if i<len(remaining):
+                        #     request = f"Offset: {remaining[i]*chunk_size}\nNumBytes: {chunk_size}\n\n"
+                        #     client_socket.sendto(request.encode(), (server_ip, server_port))
+                        #     i+=1
                     packets[ind_recv]=data
                     visited[ind_recv]=True
                 send=False
@@ -80,13 +80,16 @@ while len(remaining)>0:
                 client_socket.sendto(request.encode(), (server_ip, server_port))
                 req_send+=1
                 i+=1
-                if req_send==9:
+                if req_send==burst:
                     send=False
     rem=[]
-    if flag or got<8:
-        gap*=2
+    if flag or got*10<burst*8:
+        if burst>5:
+            burst-=3
+        else:
+            burst=burst//2
     else:
-        gap*=0.9
+        burst=min(10,burst+1)
     for j in range(len(remaining)):
         if not visited[remaining[j]]:
             rem.append(remaining[j])
@@ -97,12 +100,12 @@ received_data = b""
 for i in range(num_packets):
     received_data+=packets[i]
 
-time.sleep(0.1)
+time.sleep(0.01)
 
 while num_bytes%chunk_size!=0 :
     request = f"Offset: {num_packets*chunk_size}\nNumBytes: {num_bytes%chunk_size}\n\n"
     client_socket.sendto(request.encode(), (server_ip, server_port))
-    client_socket.settimeout(0.1)
+    client_socket.settimeout(0.01)
     try:
         response, server_address = client_socket.recvfrom(2000)
         response_lines = response.decode().split('\n')
@@ -139,9 +142,10 @@ while True:
         response, server_address = client_socket.recvfrom(2000)
         if response.decode().count('Time') and response.decode().count('Penalty'):
             print("Validation Response:", response.decode())
+            break
     except socket.timeout:
         client_socket.sendto(submit_command.encode(), (server_ip, server_port))
-        break
+    
 print("Count1: ", count1)
 print("Count2: ", count2)
 print(time.time()-begin)
