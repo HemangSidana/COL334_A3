@@ -15,7 +15,7 @@ num_bytes = int(response.decode().split()[1])
 
 miss=0
 chunk_size = 1448
-gap=0.006
+gap=0.005
 num_packets=num_bytes//chunk_size
 packets=[b""]*num_packets
 visited=[False]*num_packets
@@ -79,7 +79,9 @@ while len(remaining)>0:
                 got+=1
                 first=True
             except socket.timeout:
-                if not send and (first or time.time()-begin>10*gap):
+                if not send and (first or time.time()-begin>2*gap):
+                    if not first:
+                        print('Danger')
                     break
                 # if not send:
                 #     continue
@@ -99,11 +101,12 @@ while len(remaining)>0:
             #     burst-=3
             # else:
             #     burst=max(1,burst//2)
-            gap*=1.25
+            # gap*=1.25
+            gap=min(gap*1.2,0.025)
         elif flag:
             burst=1
         else:
-            gap*=0.9
+            gap=max(gap*0.9,0.01)
             burst=min(10,burst+1)
             # burst+=1
         time.sleep(gap)
