@@ -2,8 +2,7 @@ import socket
 import hashlib
 import time
 
-begin=time.time()
-server_ip = 'vayu.iitd.ac.in'
+server_ip = '10.17.7.218'
 server_port = 9802
 
 client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -30,12 +29,15 @@ for i in range(num_packets):
 while len(remaining)>0:
     i=0
     flag=False
+    prev_sent=0
     while i<len(remaining):
         send= True
         req_send=0
+        cur_sent=0
         got=0
+        first=False
         while True:
-            client_socket.settimeout(gap)
+            client_socket.settimeout(gap/burst)
             try:
                 if i%100==0:
                     print(i)
@@ -65,31 +67,39 @@ while len(remaining)>0:
                         #     request = f"Offset: {remaining[i]*chunk_size}\nNumBytes: {chunk_size}\n\n"
                         #     client_socket.sendto(request.encode(), (server_ip, server_port))
                         #     i+=1
+                        #     cur_sent+=1
+                        #     time.sleep(gap/10)
                     packets[ind_recv]=data
                     visited[ind_recv]=True
                 send=False
                 got+=1
+                first=True
             except socket.timeout:
                 if not send:
                     break
-                if i%71==0:
-                    print(i)
+                # if not send:
+                #     continue
                 if i>=len(remaining):
                     continue
                 request = f"Offset: {remaining[i]*chunk_size}\nNumBytes: {chunk_size}\n\n"
                 client_socket.sendto(request.encode(), (server_ip, server_port))
                 req_send+=1
                 i+=1
-                if req_send==burst:
+                if req_send+prev_sent>=burst:
                     send=False
-    rem=[]
-    if flag or got*10<burst*8:
-        if burst>5:
-            burst-=3
+        prev_sent=cur_sent
+        if flag or got*10<burst*8:
+            # burst=burst//2
+            if burst>5:
+                burst-=3
+            else:
+                burst=max(1,burst//2)
         else:
-            burst=burst//2
-    else:
-        burst=min(10,burst+1)
+            burst=min(10,burst+1)
+            # burst+=1
+
+        # print(burst)
+    rem=[]
     for j in range(len(remaining)):
         if not visited[remaining[j]]:
             rem.append(remaining[j])
@@ -148,5 +158,4 @@ while True:
     
 print("Count1: ", count1)
 print("Count2: ", count2)
-print(time.time()-begin)
 client_socket.close()
