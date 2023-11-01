@@ -14,7 +14,7 @@ response, server_address = client_socket.recvfrom(1024)
 num_bytes = int(response.decode().split()[1])
 
 chunk_size = 1448
-gap=0.05
+gap=0.005
 num_packets=num_bytes//chunk_size
 packets=[b""]*num_packets
 visited=[False]*num_packets
@@ -27,7 +27,7 @@ burst=5
 while len(remaining)>0:
     i=0
     while i<len(remaining):
-        if i%100==0:
+        if i%31==0:
             print(i)
         for j in range(burst):
             if i>= len(remaining):
@@ -35,12 +35,12 @@ while len(remaining)>0:
             request = f"Offset: {remaining[i]*chunk_size}\nNumBytes: {chunk_size}\n\n"
             client_socket.sendto(request.encode(), (server_ip, server_port))
             i+=1
-        time.sleep(10*gap)
+        time.sleep(5*gap)
         got=0
         first=False
         left=burst
         while True:
-            client_socket.settimeout(left*gap)
+            client_socket.settimeout(max(left*gap,gap))
             try:
                 response, server_address = client_socket.recvfrom(2000)
                 response_lines = response.decode().split('\n')
